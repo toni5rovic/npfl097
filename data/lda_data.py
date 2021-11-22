@@ -25,8 +25,6 @@ class DataLoader:
         self.data = self.load_data()
         self.processed_docs = []
 
-        self.test = gensim.corpora.Dictionary([['Hello', 'world', '!'], ['Desi', 'bre', 'tebra']])
-
     def load_data(self):
         return fetch_20newsgroups(subset='train').data
 
