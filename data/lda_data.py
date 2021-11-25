@@ -21,15 +21,16 @@ class Hyperparams:
         #self.wrd_cnt = len(dictionary)
 
 class DataLoader:
-    def __init__(self):
+    def __init__(self, split='train'):
+        self.split = split
         self.data = self.load_data()
         self.processed_docs = []
 
     def load_data(self):
-        return fetch_20newsgroups(subset='train').data
+        return fetch_20newsgroups(subset=self.split).data
 
     def preprocess(self):
-        path = "data/processed.pickle"
+        path = "data/processed_{}.pickle".format(self.split)
         if os.path.exists(path):
             print("Loading existing preprocessed documents...")
             with open(path, "rb") as file:
@@ -61,7 +62,7 @@ class DataLoader:
 
     def filter_docs(self, dictionary):
         # Filter words in documents
-        docs = list()
+        docs = []
         maxdoclen = 0 
         for doc in self.processed_docs:
             docs.append(list(filter(lambda x: x != -1, dictionary.doc2idx(doc))))
