@@ -35,7 +35,7 @@ class LDAModel:
     def init_znd(self, docs, max_doc_len):
         self.z_nd = [np.random.randint(0, self.topics_count, size=len(d)) for d in docs]
 
-    def compute_counts(self, docs, vocabulary, topics_num):
+    def compute_counts(self, docs, vocabulary):
         # init all elements to 0
         start_time = time.time()
 
@@ -43,7 +43,7 @@ class LDAModel:
         self.c_w = np.zeros((len(vocabulary), self.topics_count), dtype=np.int)
         self.c = np.zeros((self.topics_count, ), dtype=np.int)
 
-        # for each document index, and document list
+        # for each document index, and document in document list
         for d, document in enumerate(docs):
             # for each word with tokenID m, on the index position n in the document
             for n, m in enumerate(document):
@@ -61,20 +61,20 @@ class LDAModel:
         print("Done computing the initial counts. Elapsed time: {}".format(time.time() - start_time))
 
 
-    # w_nd = docs[d][n]
     def fit(self, docs, vocabulary, topics_num, iterations, alpha, gamma, max_doc_len):
         self.docs_count = len(docs)
         self.words_count = len(vocabulary)
         self.topics_count = topics_num
 
         self.init_znd(docs, max_doc_len)
-        self.compute_counts(docs, vocabulary, topics_num)
+        self.compute_counts(docs, vocabulary)
 
         for i in range(iterations):
             start_time = time.time()
-            for d, document in enumerate(docs):
+            for d in range(len(docs)):
+                document = docs[d]
                 N_d = len(document)
-                for n, m in enumerate(document):
+                for n in range(len(document)):
                     z_nd_value = self.z_nd[d][n]
                     w_nd = document[n]
                     
@@ -82,58 +82,41 @@ class LDAModel:
                     self.c_w[w_nd][z_nd_value] -= 1
                     self.c[z_nd_value] -= 1
 
-                    p = [0 for k in range(self.topics_count)]
-                    for k in range(self.topics_count):
-                        left_side = (alpha + self.c_d[d][k]) / (self.topics_count * alpha + N_d - 1)
-                        right_side = (gamma + self.c_w[w_nd][k]) / (self.words_count * gamma + self.c[k])
-                        p[k] = left_side * right_side
+                    left_side = (alpha + self.c_d[d,:]) / (self.topics_count * alpha + N_d - 1)
+                    right_side = (gamma + self.c_w[w_nd, :]) / (self.words_count * gamma + self.c[:])
+                    p = np.multiply(left_side, right_side)
+                    p /= sum(p)
 
-                    # sample k from probability distribution p[k]
-                    topics = [k for k in range(self.topics_count)]
+                    k = np.random.choice(range(self.topics_count), p=p)
 
-                    sum_p = sum(p)
-                    p = [x / sum_p for x in p]
-
-                    k = np.random.choice(topics, p=p)
                     self.z_nd[d][n] = k
                     
-                    self.c_d[d][k] += 1
-                    self.c_w[w_nd][k] += 1
+                    self.c_d[d, k] += 1
+                    self.c_w[w_nd, k] += 1
                     self.c[k] += 1
+            
+            elapsed_time = time.time() - start_time
 
-            copying_time_s = time.time()
             self.iteration_data.append((i, np.copy(self.c_w), np.copy(self.c_d), np.copy(self.c), np.copy(self.z_nd)))
-            copying_time_r = time.time()
-
-            entropies = self.get_entropies_per_topic_v2(gamma)
+            
+            entropies = self.get_entropies_per_topic(gamma)
             self.entropies_per_iteration.append(entropies)
 
             self.plot(i)
 
-            elapsed_time = time.time() - start_time
-
             print(entropies)
             print("Iteration: {}, time: {} seconds".format(i + 1, elapsed_time))
 
-    def get_entropies_per_topic(self):
+    def get_entropies_per_topic(self, gamma):
         entropies = np.zeros((self.topics_count, ), dtype=np.float32)
+
         for k in range(self.topics_count):
-            p_k = self.c_w[k][:] / sum(self.c_w[k][:])
-            p_k = p_k[p_k > 0]
+            sum_counts = sum(self.c_w[:, k])
+            p_k = (gamma + self.c_w[:, k]) / (self.words_count * gamma + sum_counts)
             entropies[k] = -sum(p_k * np.log2(p_k))
 
         return entropies
 
-    def get_entropies_per_topic_v2(self, gamma):
-        entropies = np.zeros((self.topics_count, ), dtype=np.float32)
-
-        for k in range(self.topics_count):
-            sum_counts = sum(self.c_w[k, :])
-            p_k = (gamma + self.c_w[k, :]) / (self.words_count * gamma + sum_counts)
-            p_k = p_k[p_k > 0]
-            entropies[k] = -sum(p_k * np.log2(p_k))
-
-        return entropies
 
     def plot(self, iteration):
         display.clear_output(wait=True)
