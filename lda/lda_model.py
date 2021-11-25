@@ -6,9 +6,7 @@ from IPython import display
 
 class LDAModel:
     def __init__(self, 
-        when_to_plot_topics_dist,
         seed = None, 
-        topics_for_histogram = None, 
         doc_idx = 12):
         
         if seed is not None:
@@ -26,15 +24,12 @@ class LDAModel:
         self.c_w = None
         self.c = None
 
-        # Task 2
-        self.iterations_for_plotting_topics_dist = when_to_plot_topics_dist
-        self.topics_distributions = []
+        self.iteration_data = []
 
         # Task 3
         self.entropies_per_iteration = []
 
         # Task 4
-        self.topics_for_histogram = topics_for_histogram
         self.word_freqs_per_iteration = []
 
     def init_znd(self, docs, max_doc_len):
@@ -88,8 +83,8 @@ class LDAModel:
                     self.c[z_nd_value] -= 1
 
                     p = [0 for k in range(self.topics_count)]
-                    for k in range(1, self.topics_count):
-                        left_side = (alpha + self.c_d[d][k]) / (self.topics_count + N_d - 1)
+                    for k in range(self.topics_count):
+                        left_side = (alpha + self.c_d[d][k]) / (self.topics_count * alpha + N_d - 1)
                         right_side = (gamma + self.c_w[w_nd][k]) / (self.words_count * gamma + self.c[k])
                         p[k] = left_side * right_side
 
@@ -106,22 +101,38 @@ class LDAModel:
                     self.c_w[w_nd][k] += 1
                     self.c[k] += 1
 
-            entropies = self.get_entropies_per_topic()
+            copying_time_s = time.time()
+            self.iteration_data.append((i, np.copy(self.c_w), np.copy(self.c_d), np.copy(self.c), np.copy(self.z_nd)))
+            copying_time_r = time.time()
+
+            entropies = self.get_entropies_per_topic_v2(gamma)
             self.entropies_per_iteration.append(entropies)
-            
+
             self.plot(i)
 
             elapsed_time = time.time() - start_time
+
+            print(entropies)
             print("Iteration: {}, time: {} seconds".format(i + 1, elapsed_time))
 
-    # TODO: izmeni naziv promenljive: p_KM
     def get_entropies_per_topic(self):
         entropies = np.zeros((self.topics_count, ), dtype=np.float32)
         for k in range(self.topics_count):
-            p_KM = self.c_w[k][:] / sum(self.c_w[k][:])
-            p_KM = p_KM[p_KM > 0]
-            entropies[k] = -sum(p_KM * np.log2(p_KM))
-        
+            p_k = self.c_w[k][:] / sum(self.c_w[k][:])
+            p_k = p_k[p_k > 0]
+            entropies[k] = -sum(p_k * np.log2(p_k))
+
+        return entropies
+
+    def get_entropies_per_topic_v2(self, gamma):
+        entropies = np.zeros((self.topics_count, ), dtype=np.float32)
+
+        for k in range(self.topics_count):
+            sum_counts = sum(self.c_w[k, :])
+            p_k = (gamma + self.c_w[k, :]) / (self.words_count * gamma + sum_counts)
+            p_k = p_k[p_k > 0]
+            entropies[k] = -sum(p_k * np.log2(p_k))
+
         return entropies
 
     def plot(self, iteration):
@@ -135,47 +146,10 @@ class LDAModel:
         ax1.set_title("Per topic entropy")
 
         topics_dist = self.c_d[self.doc_idx, :]
-        if iteration + 1 in self.iterations_for_plotting_topics_dist:
-            self.topics_distributions.append(np.copy(topics_dist))
 
         ax2.bar(range(self.topics_count), topics_dist)
-        ax2.set_title("Topic distribution: Doc {}, Iteration: {}".format(self.doc_idx, iteration))
+        ax2.set_title("Topic distribution: Doc {}, Iteration: {}".format(self.doc_idx, iteration + 1))
         ax2.set_xlabel("Topics")
         ax2.set_ylabel("Word count per topic")
         
         plt.show()
-    
-    def plot_topics_distributions(self):
-        count = 1
-        fig = plt.figure(figsize=(14,8))
-        for i in range(0, 2):
-            d = len(self.iterations_for_plotting_topics_dist)
-            pola = int(d / 2)
-            for j in range(pola):
-                topics_dist = self.topics_distributions[count - 1]
-                iteration = self.iterations_for_plotting_topics_dist[count - 1]
-
-                subplot_code = int("2{}{}".format(pola, count))
-                ax = fig.add_subplot(subplot_code)
-                
-                ax.bar(range(self.topics_count), topics_dist)
-
-                ax.set_title("Topic distribution for document {} in iteration {}".format(self.doc_idx, iteration))
-                ax.set_ylabel("Word count per topic")
-                ax.set_xlabel("Topics")
-                
-                count += 1
-        
-        plt.show()
-
-    def plot_top_words(self, dictionary, topics, top_words=20):
-        for topic in topics:
-            plt.figure(figsize=(6,3))
-            plt.xticks(rotation=90)
-            words_in_topic = self.c_w[:, topic] # Counts of words in topic k
-            word_tokenIDs = np.argsort(words_in_topic)[-top_words:]
-
-            words_to_plot=[dictionary[tokenID] for tokenID in word_tokenIDs]
-            freqs = np.sort(words_in_topic)[-top_words:]
-            plt.plot(words_to_plot, freqs, "x")
-            print()
