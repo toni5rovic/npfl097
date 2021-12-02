@@ -104,8 +104,7 @@ class LDAModel:
 
             self.plot(i)
 
-            print(entropies)
-            print("Iteration: {}, time: {} seconds".format(i + 1, elapsed_time))
+            print("Iteration: {}/{}, time: {} seconds".format(i + 1, iterations, elapsed_time))
 
     def get_entropies_per_topic(self, gamma):
         entropies = np.zeros((self.topics_count, ), dtype=np.float32)
