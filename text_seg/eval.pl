@@ -53,3 +53,11 @@ my $f1 = 2 * $precision * $recall / ($precision + $recall);
 
 printf("P:%.3f, R:%.3f, F:%.3f\n", $precision, $recall, $f1);
 
+open(OUTPUT_FILE, '>', "text_seg/results.txt") or die $!;
+print OUTPUT_FILE $precision;
+print OUTPUT_FILE "\n";
+print OUTPUT_FILE $recall;
+print OUTPUT_FILE "\n";
+print OUTPUT_FILE $f1;
+print OUTPUT_FILE "\n";
+close(OUTPUT_FILE);
